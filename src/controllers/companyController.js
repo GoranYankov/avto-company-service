@@ -12,14 +12,20 @@ const { ForbiddenError } = require('../utils/customErrors');
  * POST /api/company
  */
 exports.createCompany = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user?.id;
   const companyData = req.body;
+
+  // Security: Ensure user cannot set protected fields
+  delete companyData.isVerified;
+  delete companyData.createdBy;
+  delete companyData.isActive;
 
   const company = await companyService.createCompany(companyData, userId);
 
   res.status(201).json({
     success: true,
-    data: company
+    data: company,
+    message: 'Company created successfully'
   });
 });
 
@@ -30,16 +36,25 @@ exports.createCompany = asyncHandler(async (req, res) => {
  */
 exports.getAllCompanies = asyncHandler(async (req, res) => {
   const { page, limit, sortBy, sortOrder, search, isActive, isVerified } = req.query;
+  const userRoles = req.user?.roles || [];
+  const isAdmin = userRoles.includes('admin');
 
   // Build filter
   const filter = {};
-  if (isActive !== undefined) filter.isActive = isActive;
+  
+  // Only admins can see inactive companies
+  if (!isAdmin) {
+    filter.isActive = true;
+  } else if (isActive !== undefined) {
+    filter.isActive = isActive;
+  }
+  
   if (isVerified !== undefined) filter.isVerified = isVerified;
 
   // Build options
   const options = {
     page: parseInt(page) || 1,
-    limit: parseInt(limit) || 10,
+    limit: Math.min(parseInt(limit) || 10, 100), // Cap at 100
     sortBy: sortBy || 'createdAt',
     sortOrder: sortOrder || 'desc',
     search
@@ -60,12 +75,13 @@ exports.getAllCompanies = asyncHandler(async (req, res) => {
  */
 exports.getCompanyById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
-  const userRoles = req.user.roles || [];
+  const userId = req.user?.id;
+  const userRoles = req.user?.roles || [];
 
+  // Input validation is handled by validator middleware
   const company = await companyService.getCompanyById(id);
 
-  // Check access permissions
+  // Authorization check: only owner or admin can view
   const isAdmin = userRoles.includes('admin');
   const isOwner = company.createdBy.toString() === userId;
 
@@ -85,11 +101,19 @@ exports.getCompanyById = asyncHandler(async (req, res) => {
  */
 exports.updateCompany = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
-  const userRoles = req.user.roles || [];
+  const userId = req.user?.id;
+  const userRoles = req.user?.roles || [];
   const updateData = req.body;
 
-  // Check ownership
+  // Validate that request body is not empty
+  if (!updateData || Object.keys(updateData).length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'No update data provided'
+    });
+  }
+
+  // Authorization check: only owner or admin can update
   const isAdmin = userRoles.includes('admin');
   const isOwner = await companyService.isOwner(id, userId);
 
@@ -97,17 +121,19 @@ exports.updateCompany = asyncHandler(async (req, res) => {
     throw new ForbiddenError('You do not have permission to update this company');
   }
 
-  // Non-admins cannot change certain fields
+  // Security: Non-admins cannot change certain protected fields
   if (!isAdmin) {
     delete updateData.isVerified;
     delete updateData.createdBy;
+    delete updateData.isActive;
   }
 
   const company = await companyService.updateCompany(id, updateData, userId);
 
   res.status(200).json({
     success: true,
-    data: company
+    data: company,
+    message: 'Company updated successfully'
   });
 });
 
@@ -117,7 +143,16 @@ exports.updateCompany = asyncHandler(async (req, res) => {
  */
 exports.deleteCompany = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  const userId = req.user?.id;
+  const userRoles = req.user?.roles || [];
+
+  // Authorization check: only owner or admin can delete
+  const isAdmin = userRoles.includes('admin');
+  const isOwner = await companyService.isOwner(id, userId);
+
+  if (!isAdmin && !isOwner) {
+    throw new ForbiddenError('You do not have permission to delete this company');
+  }
 
   await companyService.deleteCompany(id, userId);
 
@@ -132,13 +167,18 @@ exports.deleteCompany = asyncHandler(async (req, res) => {
  * GET /api/company/my/companies
  */
 exports.getMyCompanies = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new ForbiddenError('User ID not found in request');
+  }
 
   const companies = await companyService.getCompaniesByCreator(userId);
 
   res.status(200).json({
     success: true,
-    data: companies
+    data: companies,
+    count: companies.length
   });
 });
 

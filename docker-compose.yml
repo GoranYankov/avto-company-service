@@ -14,6 +14,7 @@ services:
       - LOG_LEVEL=debug
       - MONGO_URI=mongodb://company-mongo:27017/company_db
       - RABBITMQ_URL=amqp://avto-rabbitmq:5672
+      - JWT_SECRET=CHANGE_THIS_TO_A_STRONG_RANDOM_STRING_AT_LEAST_32_CHARACTERS
       - CHOKIDAR_USEPOLLING=true
       - CHOKIDAR_INTERVAL=1000
     volumes:

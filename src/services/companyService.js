@@ -59,18 +59,38 @@ class CompanyService {
     try {
       const { userId, email, company: companyData, contact } = payload;
 
-      // Check if company already exists for this user
+      // Check if company already exists for this user (idempotency check)
       const existingCompany = await Company.findOne({ createdBy: userId });
       if (existingCompany) {
-        logger.warn('Company already exists for user', { userId });
+        logger.warn('Company already exists for user, skipping creation', { 
+          userId,
+          companyId: existingCompany._id 
+        });
         return existingCompany;
       }
-      console.log('Testing nodemon restart - ' + new Date().toISOString());
+
+      // Also check by email to prevent duplicates
+      const existingByEmail = await Company.findOne({ email });
+      if (existingByEmail) {
+        logger.warn('Company with this email already exists', { 
+          email,
+          existingCompanyId: existingByEmail._id
+        });
+        // Link existing company to user if not already linked
+        if (existingByEmail.createdBy.toString() !== userId) {
+          logger.info('Linking existing company to new user', {
+            companyId: existingByEmail._id,
+            userId
+          });
+        }
+        return existingByEmail;
+      }
+
       const company = await Company.create({
         name: companyData.name,
         registrationNumber: companyData.registrationNumber,
-        eik: companyData?.eik || 'пrшо',
-        vatNumber: companyData?.vatNumber || 'пrшо',
+        eik: companyData?.eik || undefined,  // Optional field
+        vatNumber: companyData?.vatNumber || undefined,  // Optional field
         email,
         phone: contact?.phone,
         address: {
@@ -90,6 +110,24 @@ class CompanyService {
 
       return company;
     } catch (error) {
+      // Handle duplicate key errors gracefully
+      if (error.code === 11000) {
+        logger.warn('Duplicate key error during company creation', {
+          error: error.message,
+          keyPattern: error.keyPattern,
+          keyValue: error.keyValue
+        });
+        
+        // Try to find the existing company
+        const existingCompany = await Company.findOne({ createdBy: payload.userId });
+        if (existingCompany) {
+          logger.info('Returning existing company instead', {
+            companyId: existingCompany._id
+          });
+          return existingCompany;
+        }
+      }
+      
       logger.error('Failed to create company from auth event', { 
         error: error.message,
         payload 
@@ -181,16 +219,22 @@ class CompanyService {
    * Get company by ID
    * @param {string} companyId - Company ID
    * @returns {Promise<Object>} Company
+   * @throws {NotFoundError} If company not found
    */
   async getCompanyById(companyId) {
+    // Validate input
+    if (!companyId || typeof companyId !== 'string') {
+      throw new NotFoundError('Invalid company ID');
+    }
+
     const company = await Company.findById(companyId);
     
     if (!company) {
-      throw new NotFoundError('Company');
+      throw new NotFoundError('Company not found');
     }
 
     if (!company.isActive) {
-      throw new NotFoundError('Company');
+      throw new NotFoundError('Company not found');
     }
 
     return company;
@@ -202,14 +246,25 @@ class CompanyService {
    * @param {Object} updateData - Update data
    * @param {string} userId - ID of user performing update
    * @returns {Promise<Object>} Updated company
+   * @throws {NotFoundError} If company not found
+   * @throws {ConflictError} If email already in use
    */
   async updateCompany(companyId, updateData, userId) {
+    // Validate inputs
+    if (!companyId || typeof companyId !== 'string') {
+      throw new NotFoundError('Invalid company ID');
+    }
+
+    if (!updateData || typeof updateData !== 'object') {
+      throw new Error('Invalid update data');
+    }
+
     const company = await this.getCompanyById(companyId);
 
     // Check if email is being changed and if it's already taken
     if (updateData.email && updateData.email !== company.email) {
       const existingCompany = await Company.findOne({ 
-        email: updateData.email,
+        email: updateData.email.toLowerCase(),
         _id: { $ne: companyId },
         isActive: true
       });
@@ -219,13 +274,19 @@ class CompanyService {
       }
     }
 
+    // Prevent updating protected system fields
+    delete updateData._id;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
     // Update company
     Object.assign(company, updateData);
     await company.save();
 
     logger.info('Company updated', { 
       companyId, 
-      updatedBy: userId 
+      updatedBy: userId,
+      fieldsUpdated: Object.keys(updateData)
     });
 
     return company;
@@ -236,8 +297,14 @@ class CompanyService {
    * @param {string} companyId - Company ID
    * @param {string} userId - ID of user performing deletion
    * @returns {Promise<Object>} Deleted company
+   * @throws {NotFoundError} If company not found
    */
   async deleteCompany(companyId, userId) {
+    // Validate inputs
+    if (!companyId || typeof companyId !== 'string') {
+      throw new NotFoundError('Invalid company ID');
+    }
+
     const company = await this.getCompanyById(companyId);
 
     // Soft delete
@@ -246,7 +313,8 @@ class CompanyService {
 
     logger.info('Company soft deleted', { 
       companyId, 
-      deletedBy: userId 
+      deletedBy: userId,
+      companyName: company.name
     });
 
     return company;

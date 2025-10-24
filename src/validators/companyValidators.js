@@ -168,5 +168,6 @@ module.exports = {
   updateCompanyValidation,
   getCompanyByIdValidation,
   deleteCompanyValidation,
+  getAllCompaniesValidation: getCompaniesQueryValidation,
   getCompaniesQueryValidation
 };

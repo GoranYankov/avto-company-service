@@ -18,8 +18,6 @@ const companySchema = new mongoose.Schema({
   },
   eik: {
     type: String,
-    required: [true, 'EIK is required'],
-    unique: true,
     trim: true,
     maxlength: [20, 'EIK cannot exceed 20 characters']
   },

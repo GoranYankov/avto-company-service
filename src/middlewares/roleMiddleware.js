@@ -105,5 +105,6 @@ module.exports = {
   requireRole,
   requireAdmin,
   requireCompanyAdmin,
-  requireOwnershipOrAdmin
+  requireOwnershipOrAdmin,
+  requireOwnerOrAdmin: requireOwnershipOrAdmin // Alias for convenience
 };

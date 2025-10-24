@@ -62,23 +62,51 @@ class EventSubscriber {
   }
 
   /**
-   * Setup exchange and queue
+   * Setup exchange and queue with retry mechanism
    */
   async setupExchangeAndQueue() {
     const exchangeName = 'auth_events';
     const queueName = 'company_service_queue';
+    const retryQueueName = 'company_service_queue.retry';
+    const dlqName = 'company_service_queue.dlq';
+    const retryExchangeName = 'company_service_queue.retry_exchange';
 
     try {
-      // Assert exchange - using same type as auth service (topic)
+      // Assert main exchange - using same type as auth service (topic)
       await this.channel.assertExchange(exchangeName, 'topic', { durable: true });
 
-      // Assert queue
-      await this.channel.assertQueue(queueName, { durable: true });
+      // Setup retry exchange (direct)
+      await this.channel.assertExchange(retryExchangeName, 'direct', { durable: true });
 
-      // Bind queue to exchange with routing keys for auth events
-      await this.channel.bindQueue(queueName, exchangeName, 'auth.user.*'); // Listen to all auth user events
+      // Setup retry queue with TTL - messages expire and go back to main queue
+      await this.channel.assertQueue(retryQueueName, { 
+        durable: true,
+        messageTtl: 5000, // 5 seconds retry delay
+        deadLetterExchange: '', // Use default exchange
+        deadLetterRoutingKey: queueName // Route back to main queue
+      });
 
-      logger.info(`Queue ${queueName} bound to exchange ${exchangeName}`);
+      // Bind retry queue to retry exchange
+      await this.channel.bindQueue(retryQueueName, retryExchangeName, 'retry');
+
+      // Setup Dead Letter Queue (final resting place for failed messages)
+      await this.channel.assertQueue(dlqName, { 
+        durable: true
+      });
+
+      // Assert main queue
+      await this.channel.assertQueue(queueName, { 
+        durable: true
+      });
+
+      // Bind main queue to exchange with routing keys for auth events
+      await this.channel.bindQueue(queueName, exchangeName, 'auth.user.*');
+
+      // Set prefetch to control how many messages are processed concurrently
+      // This ensures that if the service crashes, unacked messages return to queue
+      await this.channel.prefetch(1); // Process one message at a time
+
+      logger.info(`Queue ${queueName} bound to exchange ${exchangeName} with retry queue ${retryQueueName} and DLQ ${dlqName}`);
     } catch (error) {
       logger.error('Failed to setup exchange and queue:', error);
       throw error;
@@ -90,29 +118,86 @@ class EventSubscriber {
    */
   async consumeMessages() {
     const queueName = 'company_service_queue';
+    const retryQueueName = 'company_service_queue.retry';
+    const retryExchangeName = 'company_service_queue.retry_exchange';
+    const dlqName = 'company_service_queue.dlq';
 
     try {
       await this.channel.consume(queueName, async (msg) => {
         if (!msg) return;
 
+        let event = null;
+        let eventType = 'unknown';
+
         try {
           const content = msg.content.toString();
-          const event = JSON.parse(content);
+          event = JSON.parse(content);
+          eventType = event.eventType || 'unknown';
 
           logger.info('Received event:', { 
-            eventType: event.eventType, 
+            eventType: eventType, 
             timestamp: event.timestamp 
           });
 
           await this.handleEvent(event);
 
-          // Acknowledge message
+          // Acknowledge message only after successful processing
           this.channel.ack(msg);
+          logger.debug('Message acknowledged', { eventType: eventType });
         } catch (error) {
           logger.error('Error processing message:', error);
-          // Reject and requeue the message
-          this.channel.nack(msg, false, true);
+          
+          // Get retry count from message headers
+          const headers = msg.properties.headers || {};
+          const retryCount = headers['x-retry-count'] || 0;
+          const maxRetries = 3;
+
+          if (retryCount >= maxRetries) {
+            // Max retries reached, send to DLQ
+            logger.error(`Max retries (${maxRetries}) reached, sending to DLQ`, {
+              eventType: eventType,
+              retryCount,
+              error: error.message
+            });
+            
+            // Send to DLQ
+            this.channel.sendToQueue(dlqName, msg.content, {
+              persistent: true,
+              headers: {
+                ...headers,
+                'x-retry-count': retryCount,
+                'x-failed-reason': error.message,
+                'x-failed-at': new Date().toISOString()
+              }
+            });
+            
+            // Acknowledge original message
+            this.channel.ack(msg);
+          } else {
+            // Send to retry queue with incremented counter
+            logger.warn(`Sending message to retry queue (attempt ${retryCount + 1}/${maxRetries})`, {
+              eventType: eventType
+            });
+            
+            this.channel.publish(
+              retryExchangeName,
+              'retry',
+              msg.content,
+              {
+                persistent: true,
+                headers: {
+                  ...headers,
+                  'x-retry-count': retryCount + 1
+                }
+              }
+            );
+            
+            // Acknowledge original message (it's now in retry queue)
+            this.channel.ack(msg);
+          }
         }
+      }, {
+        noAck: false // Manual acknowledgment
       });
 
       logger.info('Started consuming messages from queue');
