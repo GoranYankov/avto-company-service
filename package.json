@@ -1,0 +1,45 @@
+{
+  "name": "company-service",
+  "version": "1.0.0",
+  "description": "Company management microservice for Fleet Management system",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "cross-env NODE_ENV=development nodemon src/server.js --watch src --ext js,json --verbose",
+    "test": "jest --runInBand",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": ["fleet-management", "company-service", "microservice"],
+  "author": "Fleet Management Team",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.2",
+    "winston": "^3.18.3",
+    "express-rate-limit": "^8.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.6.2"
+  }
+}

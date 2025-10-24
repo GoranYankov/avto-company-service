@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  company:
+    build: .
+    container_name: avto-company-service
+    ports:
+      - "4001:4001"
+    env_file:
+      - .env
+    environment:
+      - PORT=4001
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+      - MONGO_URI=mongodb://company-mongo:27017/company_db
+      - RABBITMQ_URL=amqp://avto-rabbitmq:5672
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - type: bind
+        source: ./src
+        target: /app/src
+        consistency: cached
+      - type: bind
+        source: ./package.json
+        target: /app/package.json
+      - type: bind
+        source: ./package-lock.json
+        target: /app/package-lock.json
+      - ./secrets:/secrets
+      - ./logs:/app/logs
+      # Note: do NOT override /app/node_modules with an empty volume in dev,
+      # otherwise nodemon and devDependencies installed in the image will be hidden.
+    depends_on:
+      - company-mongo
+    networks:
+      - avto-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/api/health/liveness', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  company-mongo:
+    image: mongo:6
+    container_name: avto-company-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - company-mongo-data:/data/db
+    networks:
+      - avto-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  avto-network:
+    name: avto-network
+    external: true
+
+volumes:
+  company-mongo-data:
+    name: avto-company-mongo-data
+  # node_modules_cache removed to allow image-provided node_modules (devDependencies/nodemon)

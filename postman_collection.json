@@ -1,0 +1,254 @@
+{
+  "info": {
+    "_postman_id": "b3e8a9d2-0000-4a3d-aaaa-111111111111",
+    "name": "company-service - Postman Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Колекция за тестване на `company-service` API (health + CRUD за companies). Използвайте `company-service/postman_environment.json` за променливи като baseUrl и bearerToken."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Basic health check"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Health responds 200', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies - List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/companies",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "companies"
+          ]
+        },
+        "description": "Get all companies (if API supports pagination, add query params manually)"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List responds 2xx', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"ACME Ltd\",\n  \"address\": \"123 Main St\",\n  \"country\": \"Bulgaria\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/companies",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "companies"
+          ]
+        },
+        "description": "Create a new company. Adjust body to match the actual Company model. The response should include the created resource or its id."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create responds 2xx or 201', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});",
+              "// Save returned id to environment if present (assumes response JSON has 'id' or '_id')",
+              "try {",
+              "  var json = pm.response.json();",
+              "  if (json.id) pm.environment.set('companyId', json.id);",
+              "  if (json._id) pm.environment.set('companyId', json._id);",
+              "} catch (e) {}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies - Get by Id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/companies/{{companyId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "companies",
+            "{{companyId}}"
+          ]
+        },
+        "description": "Get a single company by id. Make sure `companyId` variable is set (created from Create request or manually)."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get by id responds 2xx', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies - Update",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"ACME Ltd (updated)\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/companies/{{companyId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "companies",
+            "{{companyId}}"
+          ]
+        },
+        "description": "Update an existing company. Ensure `companyId` is set."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Update responds 2xx', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bearerToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/companies/{{companyId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "companies",
+            "{{companyId}}"
+          ]
+        },
+        "description": "Delete a company by id."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete responds 2xx or 204', function () {",
+              "  pm.expect(pm.response.code).to.be.within(200, 299);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
