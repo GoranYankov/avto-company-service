@@ -11,7 +11,8 @@
 - ✅ Comprehensive Error Handling
 - ✅ Request Logging
 - ✅ MongoDB Integration
-- ✅ RabbitMQ Event Subscriber (planned)
+- ✅ RabbitMQ Event Publisher (company.deleted)
+- ✅ RabbitMQ Event Subscriber (auth events)
 - ✅ Docker Support
 - ✅ Health Checks
 
@@ -54,8 +55,11 @@ npm run dev
 
 ## 📚 Documentation
 
+- [API Endpoints](docs/API_ENDPOINTS.md)
+- [Event Schema](docs/EVENT_SCHEMA.md) - RabbitMQ events
 - [Middlewares Documentation](docs/MIDDLEWARES.md)
 - [Utilities Documentation](docs/UTILITIES.md)
+- [RabbitMQ Resilience](docs/RABBITMQ_RESILIENCE.md)
 - [Implementation Steps](IMPLEMENTATION_STEPS.md)
 
 ## 🔧 Available Scripts

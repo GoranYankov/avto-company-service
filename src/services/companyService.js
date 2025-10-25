@@ -4,6 +4,7 @@ const {
   ConflictError
 } = require('../utils/customErrors');
 const logger = require('../utils/logger');
+const { publishCompanyDeleted } = require('../events/company.publisher');
 
 /**
  * Company Service
@@ -316,6 +317,9 @@ class CompanyService {
       deletedBy: userId,
       companyName: company.name
     });
+
+    // Publish company.deleted event
+    publishCompanyDeleted(company);
 
     return company;
   }
