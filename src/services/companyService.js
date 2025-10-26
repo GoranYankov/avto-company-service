@@ -4,7 +4,7 @@ const {
   ConflictError
 } = require('../utils/customErrors');
 const logger = require('../utils/logger');
-const { publishCompanyDeleted } = require('../events/company.publisher');
+const { publishCompanyDeleted, publishCompanyCreated } = require('../events/company.publisher');
 
 /**
  * Company Service
@@ -108,6 +108,9 @@ class CompanyService {
         companyId: company._id, 
         userId 
       });
+
+      // Publish company.created event to notify auth service
+      publishCompanyCreated(company);
 
       return company;
     } catch (error) {
