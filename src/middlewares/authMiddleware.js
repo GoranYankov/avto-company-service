@@ -53,7 +53,6 @@ const authenticate = (req, res, next) => {
         email: payload.email,
         role: payload.role,
         roles: payload.roles || (payload.role ? [payload.role] : []),
-        organizationId: payload.organizationId,
         companyId: payload.companyId
       };
 
